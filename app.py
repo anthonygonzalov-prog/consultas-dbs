@@ -5,7 +5,7 @@ import os
 import gdown
 
 # ID extraído de tu enlace de Google Drive
-DRIVE_FILE_ID = "1EyrwzIzyHRyEhlJvReBRGmBCYG7Q28gN"
+DRIVE_FILE_ID = "1ZIVfT0629q69uXEUPxI0gdTxYgQW0bYB"
 DB_FILENAME = "dbs_database.duckdb"
 
 # Función con caché para descargar la base de datos si no existe en la nube

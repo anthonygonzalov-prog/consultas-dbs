@@ -34,10 +34,16 @@ st.sidebar.header("🔍 Filtros de Búsqueda")
 
 plaqueteo_input = st.sidebar.text_input("PLAQUETEO:", placeholder="Ej. FDB100072706").strip()
 np_input = st.sidebar.text_input("Número de Parte (NP):", placeholder="Ej. 1714571 o 7W3193").strip()
+ot_taller_input = st.sidebar.text_input("OT TALLER:", placeholder="Ej. AQ01969").strip()
+ot_sucursal_input = st.sidebar.text_input("OT SUCURSAL:", placeholder="Ej. PC18504").strip()
+desc_rpto_input = st.sidebar.text_input("DESCRIPCION RPTO:", placeholder="Ej. BEARING o SEAL").strip()
+maq_input = st.sidebar.text_input("MAQ:", placeholder="Ej. 793D").strip()
 
 search_btn = st.sidebar.button("🔎 Buscar", type="primary", use_container_width=True)
 
-if search_btn or plaqueteo_input or np_input:
+has_filter = any([plaqueteo_input, np_input, ot_taller_input, ot_sucursal_input, desc_rpto_input, maq_input])
+
+if search_btn or has_filter:
     # ---------------------------------------------------------
     # TABLA 1: Coincidencias en Repuestos (Búsqueda Principal)
     # ---------------------------------------------------------
@@ -46,6 +52,14 @@ if search_btn or plaqueteo_input or np_input:
         where_clauses.append(f"UPPER(CAST(r.PLAQUETEO AS VARCHAR)) LIKE UPPER('%{plaqueteo_input}%')")
     if np_input:
         where_clauses.append(f"UPPER(CAST(r.NP AS VARCHAR)) LIKE UPPER('%{np_input}%')")
+    if ot_taller_input:
+        where_clauses.append(f"UPPER(CAST(r.OT_CHILD AS VARCHAR)) LIKE UPPER('%{ot_taller_input}%')")
+    if ot_sucursal_input:
+        where_clauses.append(f"UPPER(CAST(r.OT_MAIN AS VARCHAR)) LIKE UPPER('%{ot_sucursal_input}%')")
+    if desc_rpto_input:
+        where_clauses.append(f"UPPER(CAST(r.\"DESCRIPCION RPTO\" AS VARCHAR)) LIKE UPPER('%{desc_rpto_input}%')")
+    if maq_input:
+        where_clauses.append(f"UPPER(CAST(r.MAQ AS VARCHAR)) LIKE UPPER('%{maq_input}%')")
         
     where_str = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
     
@@ -92,15 +106,21 @@ if search_btn or plaqueteo_input or np_input:
                 st.markdown("---")
                 st.subheader(f"📊 Tabla 2: Historial de Horas y Estado para NP ({np_input})")
                 
-                horas_filter = ""
+                horas_filter_clauses = []
                 if plaqueteo_input:
-                    horas_filter = f"""
-                    WHERE UPPER(TRIM(CAST(h."OT SUCURSAL" AS VARCHAR))) IN (
-                        SELECT UPPER(TRIM(CAST(OT_MAIN AS VARCHAR))) 
-                        FROM repuestos 
-                        WHERE UPPER(CAST(PLAQUETEO AS VARCHAR)) LIKE UPPER('%{plaqueteo_input}%')
-                    )
-                    """
+                    horas_filter_clauses.append(f"""
+                        UPPER(TRIM(CAST(h."OT SUCURSAL" AS VARCHAR))) IN (
+                            SELECT UPPER(TRIM(CAST(OT_MAIN AS VARCHAR))) 
+                            FROM repuestos 
+                            WHERE UPPER(CAST(PLAQUETEO AS VARCHAR)) LIKE UPPER('%{plaqueteo_input}%')
+                        )
+                    """)
+                if ot_taller_input:
+                    horas_filter_clauses.append(f"UPPER(CAST(h.\"OT TALLER\" AS VARCHAR)) LIKE UPPER('%{ot_taller_input}%')")
+                if ot_sucursal_input:
+                    horas_filter_clauses.append(f"UPPER(CAST(h.\"OT SUCURSAL\" AS VARCHAR)) LIKE UPPER('%{ot_sucursal_input}%')")
+                
+                horas_filter = " WHERE " + " AND ".join(horas_filter_clauses) if horas_filter_clauses else ""
 
                 query2 = f"""
                     SELECT 
@@ -143,4 +163,4 @@ if search_btn or plaqueteo_input or np_input:
         except Exception as e:
             st.error(f"Error en la consulta: {e}")
 else:
-    st.info("👈 Ingresa un **Plaqueteo** o **Número de Parte (NP)** en el menú lateral para realizar una búsqueda.")
+    st.info("👈 Ingresa al menos un filtro en el menú lateral para realizar una búsqueda.")

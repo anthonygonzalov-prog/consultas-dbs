@@ -80,31 +80,34 @@ if search_btn or plaqueteo_input or np_input:
                 styler1 = df_result1.style.map(
                     lambda v: 'font-weight: bold; background-color: #f0f2f6;', subset=['HORAS']
                 )
-                st.dataframe(styler1, use_container_width=True, height=350, hide_index=True)
+                st.dataframe(styler1, use_container_width=True, height=300, hide_index=True)
             else:
                 st.warning("⚠️ No se encontraron coincidencias directas en repuestos.")
                 
             # ---------------------------------------------------------
-            # TABLA 2: Historial de Horas filtrado por Plaqueteo / NP
+            # TABLA 2: Registro completo de Horas + Clasificación
             # ---------------------------------------------------------
             st.markdown("---")
             st.subheader("📊 Tabla 2: Historial de Horas y Estado del Repuesto")
             
-            where_t2 = []
+            # Filtro opcional por Plaqueteo si fue ingresado
+            horas_filter = ""
             if plaqueteo_input:
-                where_t2.append(f"UPPER(CAST(r.PLAQUETEO AS VARCHAR)) LIKE UPPER('%{plaqueteo_input}%')")
-            if np_input:
-                where_t2.append(f"UPPER(CAST(r.NP AS VARCHAR)) LIKE UPPER('%{np_input}%')")
-                
-            where_t2_str = " WHERE " + " AND ".join(where_t2) if where_t2 else ""
-            
+                horas_filter = f"""
+                WHERE UPPER(TRIM(CAST(h."OT SUCURSAL" AS VARCHAR))) IN (
+                    SELECT UPPER(TRIM(CAST(OT_MAIN AS VARCHAR))) 
+                    FROM repuestos 
+                    WHERE UPPER(CAST(PLAQUETEO AS VARCHAR)) LIKE UPPER('%{plaqueteo_input}%')
+                )
+                """
+
             query2 = f"""
-                SELECT DISTINCT
+                SELECT 
                     h."OT TALLER",
                     h."OT SUCURSAL",
                     h.COMPONENTE,
                     h.HORAS,
-                    COALESCE('{np_input}', r.NP, '') AS NP,
+                    '{np_input}' AS NP,
                     CASE 
                         WHEN '{np_input}' != '' AND COUNT(r.NP) FILTER (WHERE UPPER(TRIM(CAST(r.NP AS VARCHAR))) = UPPER('{np_input}')) > 0 THEN 'SE PIDIO'
                         WHEN COUNT(r.OT_MAIN) > 0 THEN 'SE REUTILIZO'
@@ -112,11 +115,11 @@ if search_btn or plaqueteo_input or np_input:
                     END AS ESTADO,
                     MAX(r.FEC_APERTURA_OT_DBS) AS DESPACHO
                 FROM horas h
-                INNER JOIN repuestos r
+                LEFT JOIN repuestos r
                     ON UPPER(TRIM(CAST(h."OT SUCURSAL" AS VARCHAR))) = UPPER(TRIM(CAST(r.OT_MAIN AS VARCHAR)))
                    AND UPPER(TRIM(CAST(h."OT TALLER" AS VARCHAR))) = UPPER(TRIM(CAST(r.OT_CHILD AS VARCHAR)))
-                {where_t2_str}
-                GROUP BY h."OT TALLER", h."OT SUCURSAL", h.COMPONENTE, h.HORAS, r.NP
+                {horas_filter}
+                GROUP BY h."OT TALLER", h."OT SUCURSAL", h.COMPONENTE, h.HORAS
                 ORDER BY h.HORAS DESC
                 LIMIT 2000
             """
@@ -130,9 +133,9 @@ if search_btn or plaqueteo_input or np_input:
                     return ''
 
                 styler2 = df_result2.style.map(highlight_estado, subset=['ESTADO'])
-                st.dataframe(styler2, use_container_width=True, height=400, hide_index=True)
+                st.dataframe(styler2, use_container_width=True, height=450, hide_index=True)
             else:
-                st.info("No hay datos de horas registrados para este Plaqueteo / NP especifico.")
+                st.info("No hay registros en la tabla de horas.")
                     
         except Exception as e:
             st.error(f"Error en la consulta: {e}")

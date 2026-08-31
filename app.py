@@ -42,7 +42,8 @@ desc_rpto_input = st.sidebar.text_input("DESCRIPCION RPTO:", placeholder="Ej. BE
 maq_input = st.sidebar.text_input("MAQ:", placeholder="Ej. 793D").strip()
 
 search_btn = st.sidebar.button("🔎 Buscar", type="primary", use_container_width=True)
-
+st.sidebar.markdown("---")
+st.sidebar.caption("Created by Anthony Valdivia")
 has_filter = any([plaqueteo_input, np_input, ot_taller_input, ot_sucursal_input, desc_rpto_input, maq_input])
 
 if search_btn or has_filter:

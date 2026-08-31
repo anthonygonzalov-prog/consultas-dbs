@@ -4,19 +4,16 @@ import pandas as pd
 import os
 import gdown
 
-# ID extraído de tu enlace de Google Drive
-DRIVE_FILE_ID = "1ZIVfT0629q69uXEUPxI0gdTxYgQW0bYB"
+DRIVE_FILE_ID = "1EyrwzIzyHRyEhlJvReBRGmBCYG7Q28gN"
 DB_FILENAME = "dbs_database.duckdb"
 
-# Función con caché para descargar la base de datos si no existe en la nube
 @st.cache_resource
 def get_connection():
     if not os.path.exists(DB_FILENAME):
         url = f"https://drive.google.com/uc?id={DRIVE_FILE_ID}"
-        gdown.download(url, DB_FILENAME, quiet=False)
+        gdown.download(url, DB_FILENAME, quiet=False, fuzzy=True)
     return duckdb.connect(DB_FILENAME, read_only=True)
 
-# Configuración de la página Streamlit
 st.set_page_config(
     page_title="Consultas DBS (AQ - LJ - CR)",
     page_icon="🚜",
@@ -36,13 +33,15 @@ except Exception as e:
 st.sidebar.header("🔍 Filtros de Búsqueda")
 
 plaqueteo_input = st.sidebar.text_input("PLAQUETEO:", placeholder="Ej. FDB100072706").strip()
-np_input = st.sidebar.text_input("Número de Parte (NP):", placeholder="Ej. 1714571").strip()
+np_input = st.sidebar.text_input("Número de Parte (NP):", placeholder="Ej. 1714571 o 7W3193").strip()
 
 search_btn = st.sidebar.button("🔎 Buscar", type="primary", use_container_width=True)
 
 if search_btn or plaqueteo_input or np_input:
+    # ---------------------------------------------------------
+    # TABLA 1: Coincidencias en Repuestos (Búsqueda Principal)
+    # ---------------------------------------------------------
     where_clauses = []
-    
     if plaqueteo_input:
         where_clauses.append(f"UPPER(CAST(r.PLAQUETEO AS VARCHAR)) LIKE UPPER('%{plaqueteo_input}%')")
     if np_input:
@@ -50,7 +49,7 @@ if search_btn or plaqueteo_input or np_input:
         
     where_str = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
     
-    query = f"""
+    query1 = f"""
         SELECT 
             r.OT_MAIN,
             r.OT_CHILD,
@@ -73,27 +72,64 @@ if search_btn or plaqueteo_input or np_input:
     
     with st.spinner("Consultando registros..."):
         try:
-            df_result = conn.execute(query).df()
+            df_result1 = conn.execute(query1).df()
             
-            if not df_result.empty:
-                st.success(f"Se encontraron **{len(df_result)}** registros coincidentes.")
-                
-                # Resaltar en negrita la columna HORAS
-                styler = df_result.style.map(
+            st.subheader("📋 Tabla 1: Repuestos Utilizados y Horas")
+            if not df_result1.empty:
+                st.success(f"Se encontraron **{len(df_result1)}** registros coincidentes.")
+                styler1 = df_result1.style.map(
                     lambda v: 'font-weight: bold; background-color: #f0f2f6;', subset=['HORAS']
                 )
-                
-                st.dataframe(styler, use_container_width=True, height=450, hide_index=True)
-                
-                csv = df_result.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    label="📥 Descargar resultados en CSV",
-                    data=csv,
-                    file_name="resultado_consulta_dbs.csv",
-                    mime="text/csv"
-                )
+                st.dataframe(styler1, use_container_width=True, height=350, hide_index=True)
             else:
-                st.warning("⚠️ No se encontraron coincidencias para los datos ingresados.")
+                st.warning("⚠️ No se encontraron coincidencias directas en repuestos.")
+                
+            # ---------------------------------------------------------
+            # TABLA 2: Historial de Horas y Estado del Repuesto (NP)
+            # ---------------------------------------------------------
+            if np_input:
+                st.markdown("---")
+                st.subheader(f"📊 Tabla 2: Historial de Horas y Estado para NP ({np_input})")
+                
+                query2 = f"""
+                    SELECT 
+                        h."OT TALLER",
+                        h."OT SUCURSAL",
+                        h.COMPONENTE,
+                        h.HORAS,
+                        '{np_input}' AS NP,
+                        CASE 
+                            WHEN COUNT(r.NP) FILTER (WHERE UPPER(TRIM(CAST(r.NP AS VARCHAR))) = UPPER('{np_input}')) > 0 THEN 'SE PIDIO'
+                            WHEN COUNT(r.OT_MAIN) > 0 THEN 'SE REUTILIZO'
+                            ELSE 'SIN REGISTRO'
+                        END AS ESTADO,
+                        MAX(r.FEC_APERTURA_OT_DBS) AS DESPACHO
+                    FROM horas h
+                    LEFT JOIN repuestos r
+                        ON UPPER(TRIM(CAST(h."OT SUCURSAL" AS VARCHAR))) = UPPER(TRIM(CAST(r.OT_MAIN AS VARCHAR)))
+                       AND UPPER(TRIM(CAST(h."OT TALLER" AS VARCHAR))) = UPPER(TRIM(CAST(r.OT_CHILD AS VARCHAR)))
+                    GROUP BY h."OT TALLER", h."OT SUCURSAL", h.COMPONENTE, h.HORAS
+                    HAVING COUNT(r.OT_MAIN) > 0 OR '{np_input}' != ''
+                    ORDER BY h.HORAS DESC
+                    LIMIT 2000
+                """
+                
+                df_result2 = conn.execute(query2).df()
+                
+                if not df_result2.empty:
+                    # Formato de resaltado en amarillo para los que tienen registro
+                    def highlight_estado(val):
+                        if val == 'SE PIDIO':
+                            return 'background-color: #fff2cc; font-weight: bold; color: #7f6000;'
+                        elif val == 'SE REUTILIZO':
+                            return 'background-color: #fff2cc; font-weight: bold; color: #7f6000;'
+                        return ''
+
+                    styler2 = df_result2.style.map(highlight_estado, subset=['ESTADO'])
+                    st.dataframe(styler2, use_container_width=True, height=400, hide_index=True)
+                else:
+                    st.info("No hay datos de horas registrados para este filtro.")
+                    
         except Exception as e:
             st.error(f"Error en la consulta: {e}")
 else:

@@ -39,7 +39,7 @@ search_btn = st.sidebar.button("🔎 Buscar", type="primary", use_container_widt
 
 if search_btn or plaqueteo_input or np_input:
     # ---------------------------------------------------------
-    # TABLA 1: Coincidencias en Repuestos (Búsqueda Principal)
+    # TABLA 1: Coincidencias en Repuestos (OT TALLER y OT SUCURSAL al inicio)
     # ---------------------------------------------------------
     where_clauses = []
     if plaqueteo_input:
@@ -51,9 +51,9 @@ if search_btn or plaqueteo_input or np_input:
     
     query1 = f"""
         SELECT 
-            r.OT_MAIN,
-            r.OT_CHILD,
-            r.FEC_APERTURA_OT_DBS,
+            r.OT_CHILD AS "OT TALLER",
+            r.OT_MAIN AS "OT SUCURSAL",
+            CAST(r.FEC_APERTURA_OT_DBS AS DATE) AS "FECHA DBS",
             r.COMPONENTE,
             r.MAQ,
             r.PLAQUETEO,
@@ -67,6 +67,7 @@ if search_btn or plaqueteo_input or np_input:
             ON UPPER(TRIM(CAST(r.OT_MAIN AS VARCHAR))) = UPPER(TRIM(CAST(h."OT SUCURSAL" AS VARCHAR)))
            AND UPPER(TRIM(CAST(r.OT_CHILD AS VARCHAR))) = UPPER(TRIM(CAST(h."OT TALLER" AS VARCHAR)))
         {where_str}
+        ORDER BY CAST(r.FEC_APERTURA_OT_DBS AS DATE) ASC
         LIMIT 2000
     """
     
@@ -85,12 +86,11 @@ if search_btn or plaqueteo_input or np_input:
                 st.warning("⚠️ No se encontraron coincidencias directas en repuestos.")
                 
             # ---------------------------------------------------------
-            # TABLA 2: Registro completo de Horas + Clasificación
+            # TABLA 2: Registro completo con FECHA DBS (Menor a Mayor)
             # ---------------------------------------------------------
             st.markdown("---")
             st.subheader("📊 Tabla 2: Historial de Horas y Estado del Repuesto")
             
-            # Filtro opcional por Plaqueteo si fue ingresado
             horas_filter = ""
             if plaqueteo_input:
                 horas_filter = f"""
@@ -113,23 +113,26 @@ if search_btn or plaqueteo_input or np_input:
                         WHEN COUNT(r.OT_MAIN) > 0 THEN 'SE REUTILIZO'
                         ELSE 'SIN REGISTRO'
                     END AS ESTADO,
-                    MAX(r.FEC_APERTURA_OT_DBS) AS DESPACHO
+                    CAST(MAX(r.FEC_APERTURA_OT_DBS) AS DATE) AS "FECHA DBS"
                 FROM horas h
                 LEFT JOIN repuestos r
                     ON UPPER(TRIM(CAST(h."OT SUCURSAL" AS VARCHAR))) = UPPER(TRIM(CAST(r.OT_MAIN AS VARCHAR)))
                    AND UPPER(TRIM(CAST(h."OT TALLER" AS VARCHAR))) = UPPER(TRIM(CAST(r.OT_CHILD AS VARCHAR)))
                 {horas_filter}
                 GROUP BY h."OT TALLER", h."OT SUCURSAL", h.COMPONENTE, h.HORAS
-                ORDER BY h.HORAS DESC
+                ORDER BY "FECHA DBS" ASC NULLS LAST
                 LIMIT 2000
             """
             
             df_result2 = conn.execute(query2).df()
             
             if not df_result2.empty:
+                # Formato de colores diferenciados para la columna ESTADO
                 def highlight_estado(val):
-                    if val in ['SE PIDIO', 'SE REUTILIZO']:
-                        return 'background-color: #fff2cc; font-weight: bold; color: #7f6000;'
+                    if val == 'SE PIDIO':
+                        return 'background-color: #d4edda; font-weight: bold; color: #155724;'  # Verde
+                    elif val == 'SE REUTILIZO':
+                        return 'background-color: #fff2cc; font-weight: bold; color: #7f6000;'  # Amarillo
                     return ''
 
                 styler2 = df_result2.style.map(highlight_estado, subset=['ESTADO'])

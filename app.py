@@ -19,6 +19,7 @@ st.set_page_config(
     page_icon="🚜",
     layout="wide"
 )
+
 if os.path.exists("logo-vector-ferreyros (1).jpg"):
     st.sidebar.image("logo-vector-ferreyros (1).jpg", use_container_width=True)
     
@@ -30,6 +31,44 @@ try:
 except Exception as e:
     st.error("No se pudo descargar o conectar a la base de datos de Google Drive.")
     st.stop()
+
+# ---------------------------------------------------------
+# INSTRUCTIVO INTERACTIVO PARA EL TALLER
+# ---------------------------------------------------------
+with st.expander("📖 **¿Cómo usar esta aplicación? (Guía Interactiva para el Taller)**", expanded=False):
+    st.markdown("### 🛠️ Guía Rápida de Operación")
+    
+    col_inst1, col_inst2, col_inst3 = st.columns(3)
+    
+    with col_inst1:
+        st.info("#### 1️⃣ Búsqueda General (Tabla 1)\nUsa **PLAQUETEO**, **OT SUCURSAL** o **MAQ** en el panel lateral para ver todos los repuestos consumidos y sus respectivas horas.")
+        
+    with col_inst2:
+        st.success("#### 2️⃣ Historial por Repuesto (Tabla 2)\nAl ingresar un **Número de Parte (NP)**, se activará automáticamente una segunda tabla analizando el historial de horas y comportamiento del repuesto.")
+        
+    with col_inst3:
+        st.warning("#### 3️⃣ Leyenda de Estados\n* 🟢 **SE PIDIO**: El repuesto se solicitó formalmente.\n* 🟡 **SE REUTILIZO**: Se operó en la OT pero sin requerir pedido nuevo.")
+
+    st.markdown("---")
+    st.markdown("#### 💡 Ejemplos prácticos de consulta:")
+    
+    tab_ej1, tab_ej2, tab_ej3 = st.tabs(["🔍 Por Plaqueteo", "⚙️ Por Número de Parte (NP)", "📋 Por Orden de Trabajo (OT)"])
+    
+    with tab_ej1:
+        st.write("**Objetivo:** Consultar el historial operativo y repuestos de una máquina específica.")
+        st.code("PLAQUETEO: 9ZC100072015", language="text")
+        st.caption("👉 Escribe el código en el menú lateral izquierdo y haz clic en 'Buscar'.")
+        
+    with tab_ej2:
+        st.write("**Objetivo:** Analizar a qué cantidad de horas suele instalarse o requerirse un repuesto.")
+        st.code("Número de Parte (NP): 7W3193", language="text")
+        st.caption("👉 Esto te arrojará la Tabla 1 de consumos y la Tabla 2 con su historial de estados y horas.")
+        
+    with tab_ej3:
+        st.write("**Objetivo:** Rastrear los repuestos cargados a una orden de taller o sucursal particular.")
+        st.code("OT TALLER: AQ05614  |  OT SUCURSAL: PC29240", language="text")
+
+st.markdown("---")
 
 # Panel lateral de filtros
 st.sidebar.header("🔍 Filtros de Búsqueda")

@@ -39,7 +39,7 @@ search_btn = st.sidebar.button("🔎 Buscar", type="primary", use_container_widt
 
 if search_btn or plaqueteo_input or np_input:
     # ---------------------------------------------------------
-    # TABLA 1: Coincidencias en Repuestos (OT TALLER y OT SUCURSAL al inicio)
+    # TABLA 1: Coincidencias en Repuestos (Búsqueda Principal)
     # ---------------------------------------------------------
     where_clauses = []
     if plaqueteo_input:
@@ -81,64 +81,64 @@ if search_btn or plaqueteo_input or np_input:
                 styler1 = df_result1.style.map(
                     lambda v: 'font-weight: bold; background-color: #f0f2f6;', subset=['HORAS']
                 )
-                st.dataframe(styler1, use_container_width=True, height=300, hide_index=True)
+                st.dataframe(styler1, use_container_width=True, height=350, hide_index=True)
             else:
                 st.warning("⚠️ No se encontraron coincidencias directas en repuestos.")
                 
             # ---------------------------------------------------------
-            # TABLA 2: Registro completo con FECHA DBS (Menor a Mayor)
+            # TABLA 2: Solo se muestra si SE INGRESÓ un Número de Parte (NP)
             # ---------------------------------------------------------
-            st.markdown("---")
-            st.subheader("📊 Tabla 2: Historial de Horas y Estado del Repuesto")
-            
-            horas_filter = ""
-            if plaqueteo_input:
-                horas_filter = f"""
-                WHERE UPPER(TRIM(CAST(h."OT SUCURSAL" AS VARCHAR))) IN (
-                    SELECT UPPER(TRIM(CAST(OT_MAIN AS VARCHAR))) 
-                    FROM repuestos 
-                    WHERE UPPER(CAST(PLAQUETEO AS VARCHAR)) LIKE UPPER('%{plaqueteo_input}%')
-                )
+            if np_input:
+                st.markdown("---")
+                st.subheader(f"📊 Tabla 2: Historial de Horas y Estado para NP ({np_input})")
+                
+                horas_filter = ""
+                if plaqueteo_input:
+                    horas_filter = f"""
+                    WHERE UPPER(TRIM(CAST(h."OT SUCURSAL" AS VARCHAR))) IN (
+                        SELECT UPPER(TRIM(CAST(OT_MAIN AS VARCHAR))) 
+                        FROM repuestos 
+                        WHERE UPPER(CAST(PLAQUETEO AS VARCHAR)) LIKE UPPER('%{plaqueteo_input}%')
+                    )
+                    """
+
+                query2 = f"""
+                    SELECT 
+                        h."OT TALLER",
+                        h."OT SUCURSAL",
+                        h.COMPONENTE,
+                        h.HORAS,
+                        '{np_input}' AS NP,
+                        CASE 
+                            WHEN COUNT(r.NP) FILTER (WHERE UPPER(TRIM(CAST(r.NP AS VARCHAR))) = UPPER('{np_input}')) > 0 THEN 'SE PIDIO'
+                            WHEN COUNT(r.OT_MAIN) > 0 THEN 'SE REUTILIZO'
+                            ELSE 'SIN REGISTRO'
+                        END AS ESTADO,
+                        CAST(MAX(r.FEC_APERTURA_OT_DBS) AS DATE) AS "FECHA DBS"
+                    FROM horas h
+                    LEFT JOIN repuestos r
+                        ON UPPER(TRIM(CAST(h."OT SUCURSAL" AS VARCHAR))) = UPPER(TRIM(CAST(r.OT_MAIN AS VARCHAR)))
+                       AND UPPER(TRIM(CAST(h."OT TALLER" AS VARCHAR))) = UPPER(TRIM(CAST(r.OT_CHILD AS VARCHAR)))
+                    {horas_filter}
+                    GROUP BY h."OT TALLER", h."OT SUCURSAL", h.COMPONENTE, h.HORAS
+                    ORDER BY "FECHA DBS" ASC NULLS LAST
+                    LIMIT 2000
                 """
+                
+                df_result2 = conn.execute(query2).df()
+                
+                if not df_result2.empty:
+                    def highlight_estado(val):
+                        if val == 'SE PIDIO':
+                            return 'background-color: #d4edda; font-weight: bold; color: #155724;'
+                        elif val == 'SE REUTILIZO':
+                            return 'background-color: #fff2cc; font-weight: bold; color: #7f6000;'
+                        return ''
 
-            query2 = f"""
-                SELECT 
-                    h."OT TALLER",
-                    h."OT SUCURSAL",
-                    h.COMPONENTE,
-                    h.HORAS,
-                    '{np_input}' AS NP,
-                    CASE 
-                        WHEN '{np_input}' != '' AND COUNT(r.NP) FILTER (WHERE UPPER(TRIM(CAST(r.NP AS VARCHAR))) = UPPER('{np_input}')) > 0 THEN 'SE PIDIO'
-                        WHEN COUNT(r.OT_MAIN) > 0 THEN 'SE REUTILIZO'
-                        ELSE 'SIN REGISTRO'
-                    END AS ESTADO,
-                    CAST(MAX(r.FEC_APERTURA_OT_DBS) AS DATE) AS "FECHA DBS"
-                FROM horas h
-                LEFT JOIN repuestos r
-                    ON UPPER(TRIM(CAST(h."OT SUCURSAL" AS VARCHAR))) = UPPER(TRIM(CAST(r.OT_MAIN AS VARCHAR)))
-                   AND UPPER(TRIM(CAST(h."OT TALLER" AS VARCHAR))) = UPPER(TRIM(CAST(r.OT_CHILD AS VARCHAR)))
-                {horas_filter}
-                GROUP BY h."OT TALLER", h."OT SUCURSAL", h.COMPONENTE, h.HORAS
-                ORDER BY "FECHA DBS" ASC NULLS LAST
-                LIMIT 2000
-            """
-            
-            df_result2 = conn.execute(query2).df()
-            
-            if not df_result2.empty:
-                # Formato de colores diferenciados para la columna ESTADO
-                def highlight_estado(val):
-                    if val == 'SE PIDIO':
-                        return 'background-color: #d4edda; font-weight: bold; color: #155724;'  # Verde
-                    elif val == 'SE REUTILIZO':
-                        return 'background-color: #fff2cc; font-weight: bold; color: #7f6000;'  # Amarillo
-                    return ''
-
-                styler2 = df_result2.style.map(highlight_estado, subset=['ESTADO'])
-                st.dataframe(styler2, use_container_width=True, height=450, hide_index=True)
-            else:
-                st.info("No hay registros en la tabla de horas.")
+                    styler2 = df_result2.style.map(highlight_estado, subset=['ESTADO'])
+                    st.dataframe(styler2, use_container_width=True, height=450, hide_index=True)
+                else:
+                    st.info("No hay registros de horas para este filtro.")
                     
         except Exception as e:
             st.error(f"Error en la consulta: {e}")

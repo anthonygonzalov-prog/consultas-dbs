@@ -19,7 +19,9 @@ st.set_page_config(
     page_icon="🚜",
     layout="wide"
 )
-
+if os.path.exists("logo-vector-ferreyros (1).jpg"):
+    st.sidebar.image("logo-vector-ferreyros (1).jpg", use_container_width=True)
+    
 st.title("🚜 Consultas DBS (AQ - LJ - CR) - Consumo de repuestos y horas")
 st.markdown("Consulta en tiempo real entre más de **2.8 millones de registros**.")
 

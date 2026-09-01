@@ -7,11 +7,14 @@ import gdown
 DRIVE_FILE_ID = "1ZIVfT0629q69uXEUPxI0gdTxYgQW0bYB"
 DB_FILENAME = "dbs_database.duckdb"
 
-@st.cache_resource
-def get_connection():
+@st.cache_resourcedef get_connection():
     if not os.path.exists(DB_FILENAME):
-        url = f"https://drive.google.com/uc?id={DRIVE_FILE_ID}"
-        gdown.download(url, DB_FILENAME, quiet=False, fuzzy=True)
+        try:
+            gdown.download(id=DRIVE_FILE_ID, output=DB_FILENAME, quiet=False)
+        except Exception as e:
+            # Fallback a URL estricta por si falla gdown nativo
+            url = f"https://drive.google.com/uc?id={DRIVE_FILE_ID}"
+            gdown.download(url, DB_FILENAME, quiet=False, fuzzy=True)
     return duckdb.connect(DB_FILENAME, read_only=True)
 
 st.set_page_config(
